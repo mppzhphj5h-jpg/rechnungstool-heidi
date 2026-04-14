@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Provisionen">
+  <meta name="theme-color" content="#1a365d">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>Provisionsabrechnung</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header -->
+  <header id="appHeader">
+    <div class="header-left">
+      <button id="btnBack" class="header-btn hidden" aria-label="Zurück">&larr;</button>
+    </div>
+    <h1 id="headerTitle">Provisionen</h1>
+    <div class="header-right">
+      <button id="btnSettings" class="header-btn" aria-label="Einstellungen">&#9881;</button>
+    </div>
+  </header>
+
+  <!-- List View -->
+  <main id="viewList" class="view active">
+    <div class="search-bar">
+      <input type="search" id="searchInput" placeholder="Suche nach Name, Nr., Art...">
+    </div>
+    <button class="btn btn-primary new-btn" id="btnNewTop">+ Neue Rechnung erstellen</button>
+    <div class="summary-bar">
+      <span id="summaryCount">0 Rechnungen</span>
+      <span id="summaryTotal">Gesamt: 0,00 &euro;</span>
+    </div>
+    <div id="invoiceList" class="invoice-list"></div>
+    <button id="btnNew" class="fab" aria-label="Neue Rechnung">+</button>
+  </main>
+
+  <!-- Form View -->
+  <main id="viewForm" class="view">
+    <form id="invoiceForm" novalidate>
+      <!-- Rechnungskopf -->
+      <div class="form-section-title">Rechnungsdaten</div>
+      <div class="form-group">
+        <label for="fNummer">Rechnungsnummer</label>
+        <input type="text" id="fNummer" required autocomplete="off" placeholder="z.B. 2026-001">
+      </div>
+      <div class="form-group">
+        <label for="fDatum">Zahlungseingang (Datum)</label>
+        <input type="date" id="fDatum" required>
+      </div>
+
+      <!-- Positionen -->
+      <div class="form-section-title">Positionen <button type="button" class="add-item-btn" id="btnAddItem">+ Position</button></div>
+      <div id="itemsContainer"></div>
+
+      <!-- Gesamtsumme -->
+      <div class="form-group computed total-row">
+        <label>Gesamt-Provisionsbetrag</label>
+        <div id="fTotalProv" class="computed-value">0,00 &euro;</div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" id="btnSave">Speichern &amp; PDF senden</button>
+        <button type="button" class="btn btn-danger hidden" id="btnDelete">Rechnung l&ouml;schen</button>
+      </div>
+    </form>
+  </main>
+
+  <!-- Detail View -->
+  <main id="viewDetail" class="view">
+    <div class="detail-card" id="detailContent"></div>
+    <div class="detail-actions">
+      <button class="btn btn-primary" id="btnPdf">PDF erstellen &amp; teilen</button>
+      <button class="btn btn-secondary" id="btnEdit">Bearbeiten</button>
+    </div>
+  </main>
+
+  <!-- Settings View -->
+  <main id="viewSettings" class="view">
+    <div class="settings-card">
+      <h2>Einstellungen</h2>
+      <div class="form-group">
+        <label for="sMwst">Mehrwertsteuersatz (%)</label>
+        <input type="number" id="sMwst" step="0.1" min="0" max="100" value="19" inputmode="decimal">
+      </div>
+      <div class="form-group">
+        <label for="sFirma">Firmenname (f&uuml;r PDF)</label>
+        <input type="text" id="sFirma" value="Heidi Keefer" placeholder="Name f&uuml;r PDF-Kopfzeile">
+      </div>
+      <div class="form-group">
+        <label for="sAdresse">Adresse (f&uuml;r PDF)</label>
+        <textarea id="sAdresse" rows="3" placeholder="Stra&szlig;e, PLZ Ort"></textarea>
+      </div>
+      <button class="btn btn-primary" id="btnSaveSettings">Einstellungen speichern</button>
+      <hr>
+      <button class="btn btn-secondary" id="btnExport">Alle Daten exportieren (JSON)</button>
+      <button class="btn btn-secondary" id="btnImport">Daten importieren (JSON)</button>
+      <input type="file" id="importFile" accept=".json" class="hidden">
+      <hr>
+      <button class="btn btn-danger" id="btnClearAll">Alle Daten l&ouml;schen</button>
+    </div>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
