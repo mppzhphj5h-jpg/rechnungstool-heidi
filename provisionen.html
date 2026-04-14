@@ -554,14 +554,14 @@ async function generatePDF() {
   // ══════════════════════════════════════
   y += 5;
   const colDef = [
-    {label: 'Art der\nVermittlung',     w: 22, align: 'left'},
-    {label: 'K\u00e4ufer/Verk\u00e4ufer/\nMieter/Vermieter',  w: 32, align: 'left'},
-    {label: 'Re.-Nr.',                  w: 18, align: 'center'},
-    {label: 'Zahlungs-\neingang',       w: 22, align: 'center'},
-    {label: 'Rechnung\ninkl. MwSt.',    w: 26, align: 'right'},
-    {label: 'Rechnung\nohne MwSt.',     w: 26, align: 'right'},
-    {label: 'Provision\nKeefer %',      w: 18, align: 'center'},
-    {label: 'Provisions-\nbetrag \u20AC',  w: cw - 22 - 32 - 18 - 22 - 26 - 26 - 18, align: 'right'}
+    {label: 'Art der\nVermittlung',         w: 20, align: 'left'},
+    {label: 'K\u00e4ufer/Verk\u00e4ufer/\nMieter/Vermieter',  w: 30, align: 'left'},
+    {label: 'Re.-Nr.',                      w: 16, align: 'center'},
+    {label: 'Zahlungs-\neingang',           w: 20, align: 'center'},
+    {label: 'Rechnung\ninkl. MwSt.',        w: 26, align: 'right'},
+    {label: 'Rechnung\nohne MwSt.',         w: 26, align: 'right'},
+    {label: 'Provision\nKeefer in %',       w: 18, align: 'center'},
+    {label: 'Provisions-\nbetrag in \u20AC',   w: 18, align: 'right'}
   ];
 
   // Spalten-X berechnen
@@ -576,13 +576,18 @@ async function generatePDF() {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
 
-  colDef.forEach(c => {
+  colDef.forEach((c, ci) => {
     const lines = c.label.split('\n');
     const ly = lines.length > 1 ? y + 5 : y + 8;
     lines.forEach((line, li) => {
-      const tx = c.align === 'right' ? c.x + c.w - 2 : c.align === 'center' ? c.x + c.w/2 : c.x + 2;
+      const tx = c.align === 'right' ? c.x + c.w - 3 : c.align === 'center' ? c.x + c.w/2 : c.x + 3;
       doc.text(line, tx, ly + li * 4, {align: c.align === 'left' ? 'left' : c.align});
     });
+    // Vertikale Trennlinien im Kopf (weiß, dezent)
+    if (ci > 0) {
+      doc.setDrawColor(80, 110, 150); doc.setLineWidth(0.2);
+      doc.line(c.x, y + 2, c.x, y + headH - 2);
+    }
   });
   y += headH;
 
@@ -600,25 +605,25 @@ async function generatePDF() {
     else { doc.setFillColor(255, 255, 255); }
     doc.rect(m, y, cw, rowH, 'F');
 
-    // Untere Linie
-    doc.setDrawColor(210, 218, 230);
-    doc.setLineWidth(0.2);
-    doc.line(m, y + rowH, m + cw, y + rowH);
+    // Rahmen und vertikale Linien
+    doc.setDrawColor(200, 210, 225); doc.setLineWidth(0.2);
+    doc.rect(m, y, cw, rowH);
+    colDef.forEach((c, ci) => { if (ci > 0) doc.line(c.x, y, c.x, y + rowH); });
 
     doc.setTextColor(30, 30, 30);
-    const ty = y + 6;
+    const ty = y + 6.2;
 
-    doc.text(item.art || '', colDef[0].x + 2, ty);
-    doc.text(item.name || '', colDef[1].x + 2, ty);
-    doc.setFontSize(7.5);
+    doc.text(item.art || '', colDef[0].x + 3, ty);
+    doc.text(item.name || '', colDef[1].x + 3, ty);
+    doc.setFontSize(7);
     doc.text(inv.nummer || '', colDef[2].x + colDef[2].w/2, ty, {align:'center'});
     doc.text(today, colDef[3].x + colDef[3].w/2, ty, {align:'center'});
     doc.setFontSize(8);
-    doc.text(eur(item.brutto), colDef[4].x + colDef[4].w - 2, ty, {align:'right'});
-    doc.text(eur(item.netto), colDef[5].x + colDef[5].w - 2, ty, {align:'right'});
-    doc.text((item.provision||0).toLocaleString('de-DE') + ' %', colDef[6].x + colDef[6].w/2, ty, {align:'center'});
+    doc.text(eur(item.brutto), colDef[4].x + colDef[4].w - 3, ty, {align:'right'});
+    doc.text(eur(item.netto), colDef[5].x + colDef[5].w - 3, ty, {align:'right'});
+    doc.text((item.provision||0).toLocaleString('de-DE')+' %', colDef[6].x + colDef[6].w/2, ty, {align:'center'});
     doc.setFont('helvetica', 'bold');
-    doc.text(eur(item.provBetrag), colDef[7].x + colDef[7].w - 2, ty, {align:'right'});
+    doc.text(eur(item.provBetrag), colDef[7].x + colDef[7].w - 3, ty, {align:'right'});
     doc.setFont('helvetica', 'normal');
 
     y += rowH;
@@ -629,14 +634,16 @@ async function generatePDF() {
   // ══════════════════════════════════════
   doc.setFillColor(26, 54, 93);
   doc.rect(m, y, cw, 11, 'F');
+  // Vertikale Linien in Summenzeile
+  colDef.forEach((c, ci) => { if (ci > 0) { doc.setDrawColor(60,90,130); doc.setLineWidth(0.2); doc.line(c.x, y, c.x, y+11); } });
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.text('SUMME', colDef[0].x + 3, y + 7.5);
-  doc.text(eur(totalBrutto), colDef[4].x + colDef[4].w - 2, y + 7.5, {align:'right'});
-  doc.text(eur(totalNetto), colDef[5].x + colDef[5].w - 2, y + 7.5, {align:'right'});
-  doc.setFontSize(10);
-  doc.text(eur(totalProv), colDef[7].x + colDef[7].w - 2, y + 7.5, {align:'right'});
+  doc.text(eur(totalBrutto), colDef[4].x + colDef[4].w - 3, y + 7.5, {align:'right'});
+  doc.text(eur(totalNetto), colDef[5].x + colDef[5].w - 3, y + 7.5, {align:'right'});
+  doc.setFontSize(9);
+  doc.text(eur(totalProv), colDef[7].x + colDef[7].w - 3, y + 7.5, {align:'right'});
   y += 11;
 
   // Rahmen um gesamte Tabelle
