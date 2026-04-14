@@ -578,12 +578,24 @@ async function generatePDF() {
   });
   y += headH;
 
-  // Datenzeilen — NUR befüllte
+  // Datenzeilen — NUR befüllte, mit Textumbruch
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  const rowH = 9;
+  const baseRowH = 9;
+  const lineH = 3.5; // Zeilenabstand bei Umbruch
+  const pad = 2.5; // Innenabstand
 
   items.forEach((item, idx) => {
+    // Berechne benötigte Zeilenhöhe basierend auf längsten Text
+    doc.setFontSize(8);
+    const artLines = doc.splitTextToSize(item.art || '', colDef[0].w - 2*pad);
+    const nameLines = doc.splitTextToSize(item.name || '', colDef[1].w - 2*pad);
+    doc.setFontSize(7);
+    const numLines = doc.splitTextToSize(item.nummer || inv.nummer || '', colDef[2].w - 2*pad);
+    doc.setFontSize(8);
+    const maxLines = Math.max(artLines.length, nameLines.length, numLines.length, 1);
+    const rowH = Math.max(baseRowH, maxLines * lineH + 2*pad);
+
     // Seitenumbruch
     if (y + rowH > 220) { doc.addPage(); y = 20; }
 
@@ -598,19 +610,31 @@ async function generatePDF() {
     colDef.forEach((c, ci) => { if (ci > 0) doc.line(c.x, y, c.x, y + rowH); });
 
     doc.setTextColor(30, 30, 30);
-    const ty = y + 6.2;
+    // Vertikale Zentrierung: Mitte der Zeile
+    const centerY = y + rowH/2;
+    // Für einzeilige Texte
+    const singleY = centerY + 2.5;
 
-    doc.text(item.art || '', colDef[0].x + 3, ty);
-    doc.text(item.name || '', colDef[1].x + 3, ty);
-    doc.setFontSize(7);
-    doc.text(item.nummer || inv.nummer || '', colDef[2].x + colDef[2].w/2, ty, {align:'center'});
-    doc.text(datumFormat(item.datum || inv.datum), colDef[3].x + colDef[3].w/2, ty, {align:'center'});
+    // Mehrzeilige Felder
     doc.setFontSize(8);
-    doc.text(eur(item.brutto), colDef[4].x + colDef[4].w - 3, ty, {align:'right'});
-    doc.text(eur(item.netto), colDef[5].x + colDef[5].w - 3, ty, {align:'right'});
-    doc.text((item.provision||0).toLocaleString('de-DE')+' %', colDef[6].x + colDef[6].w/2, ty, {align:'center'});
+    const artStartY = centerY - ((artLines.length - 1) * lineH / 2) + 2.5;
+    artLines.forEach((line, li) => doc.text(line, colDef[0].x + pad, artStartY + li * lineH));
+
+    const nameStartY = centerY - ((nameLines.length - 1) * lineH / 2) + 2.5;
+    nameLines.forEach((line, li) => doc.text(line, colDef[1].x + pad, nameStartY + li * lineH));
+
+    doc.setFontSize(7);
+    const numStartY = centerY - ((numLines.length - 1) * lineH / 2) + 2.5;
+    numLines.forEach((line, li) => doc.text(line, colDef[2].x + colDef[2].w/2, numStartY + li * lineH, {align:'center'}));
+
+    doc.text(datumFormat(item.datum || inv.datum), colDef[3].x + colDef[3].w/2, singleY, {align:'center'});
+
+    doc.setFontSize(8);
+    doc.text(eur(item.brutto), colDef[4].x + colDef[4].w - pad, singleY, {align:'right'});
+    doc.text(eur(item.netto), colDef[5].x + colDef[5].w - pad, singleY, {align:'right'});
+    doc.text((item.provision||0).toLocaleString('de-DE')+' %', colDef[6].x + colDef[6].w/2, singleY, {align:'center'});
     doc.setFont('helvetica', 'bold');
-    doc.text(eur(item.provBetrag), colDef[7].x + colDef[7].w - 3, ty, {align:'right'});
+    doc.text(eur(item.provBetrag), colDef[7].x + colDef[7].w - pad, singleY, {align:'right'});
     doc.setFont('helvetica', 'normal');
 
     y += rowH;
