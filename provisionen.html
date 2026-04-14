@@ -210,11 +210,6 @@ form { display: flex; flex-direction: column; gap: 16px; }
 
   <main id="viewForm" class="view">
     <form id="invoiceForm" novalidate>
-      <div class="form-section-title">Rechnungsdaten</div>
-      <div class="form-group">
-        <label for="fNummer">Rechnungsnummer</label>
-        <input type="text" id="fNummer" required autocomplete="off" placeholder="z.B. 2026-001">
-      </div>
       <div class="form-section-title">Positionen</div>
       <div id="itemsContainer"></div>
       <button type="button" class="btn btn-secondary add-item-btn-full" id="btnAddItem">+ Weitere Position hinzuf&uuml;gen</button>
@@ -347,7 +342,7 @@ function renderList() {
 }
 
 let formItems = [];
-function addItemRow(item) { formItems.push(item || {art:'',name:'',datum:new Date().toISOString().slice(0,10),brutto:'',provision:''}); renderItems(); }
+function addItemRow(item) { formItems.push(item || {art:'',name:'',nummer:'',datum:new Date().toISOString().slice(0,10),brutto:'',provision:''}); renderItems(); }
 function removeItem(idx) { formItems.splice(idx, 1); renderItems(); }
 
 function renderItems() {
@@ -364,6 +359,8 @@ function renderItems() {
     +'<option'+(item.art==='Sonstiges'?' selected':'')+'>Sonstiges</option></select></div>'
     +'<div class="form-group"><label>K\u00e4ufer/Verk\u00e4ufer/Mieter/Vermieter: Nachname</label>'
     +'<input type="text" class="fi-name" data-idx="'+idx+'" value="'+esc(item.name||'')+'" placeholder="Nachname" autocomplete="off"></div>'
+    +'<div class="form-group"><label>Rechnungsnummer</label>'
+    +'<input type="text" class="fi-nummer" data-idx="'+idx+'" value="'+esc(item.nummer||'')+'" placeholder="z.B. 2026-001" autocomplete="off"></div>'
     +'<div class="form-group"><label>Zahlungseingang (Datum)</label>'
     +'<input type="date" class="fi-datum" data-idx="'+idx+'" value="'+(item.datum||new Date().toISOString().slice(0,10))+'"></div>'
     +'<div class="form-group"><label>Rechnung (inkl. MwSt.) in \u20AC</label>'
@@ -388,6 +385,7 @@ function bindItemEvents() {
 function syncItemsFromDOM() {
   document.querySelectorAll('.fi-art').forEach(el => { formItems[el.dataset.idx].art = el.value; });
   document.querySelectorAll('.fi-name').forEach(el => { formItems[el.dataset.idx].name = el.value; });
+  document.querySelectorAll('.fi-nummer').forEach(el => { formItems[el.dataset.idx].nummer = el.value; });
   document.querySelectorAll('.fi-datum').forEach(el => { formItems[el.dataset.idx].datum = el.value; });
   document.querySelectorAll('.fi-brutto').forEach(el => { formItems[el.dataset.idx].brutto = el.value; });
   document.querySelectorAll('.fi-prov').forEach(el => { formItems[el.dataset.idx].provision = el.value; });
@@ -414,12 +412,12 @@ function updateTotals() {
 function openForm(id) {
   currentId = id;
   const inv = id ? invoices.find(i => i.id === id) : null;
-  $('fNummer').value = inv ? inv.nummer : generateNummer();
   $('btnDelete').classList.toggle('hidden', !id);
+  const defaultNr = inv ? inv.nummer : generateNummer();
   formItems = inv && inv.items && inv.items.length
-    ? inv.items.map(i => ({art:i.art,name:i.name,datum:i.datum||inv.datum||'',brutto:i.brutto,provision:i.provision}))
+    ? inv.items.map(i => ({art:i.art,name:i.name,nummer:i.nummer||inv.nummer||'',datum:i.datum||inv.datum||'',brutto:i.brutto,provision:i.provision}))
     : [];
-  if (formItems.length === 0) addItemRow(); else renderItems();
+  if (formItems.length === 0) addItemRow({art:'',name:'',nummer:defaultNr,datum:new Date().toISOString().slice(0,10),brutto:'',provision:''}); else renderItems();
   showView('form', id ? 'Rechnung bearbeiten' : 'Neue Rechnung');
 }
 
@@ -433,11 +431,11 @@ async function saveInvoice(e) {
   e.preventDefault(); syncItemsFromDOM();
   const items = formItems.map(fi => {
     const b = parseFloat(fi.brutto)||0, n = calcNetto(b), p = parseFloat(fi.provision)||0;
-    return {art:fi.art,name:fi.name,datum:fi.datum||'',brutto:b,netto:n,provision:p,provBetrag:calcProv(n,p)};
+    return {art:fi.art,name:fi.name,nummer:fi.nummer||'',datum:fi.datum||'',brutto:b,netto:n,provision:p,provBetrag:calcProv(n,p)};
   });
   const inv = {
     id: currentId || Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-    nummer: $('fNummer').value, datum: items[0]?.datum || '',
+    nummer: items[0]?.nummer || '', datum: items[0]?.datum || '',
     items, mwstSatz: settings.mwst, updatedAt: new Date().toISOString()
   };
   await dbPut(inv); currentId = inv.id;
@@ -466,6 +464,7 @@ function showDetail(id) {
     h += '<div class="detail-rows">'
       +'<div class="detail-row" style="background:#f0f5ff"><span class="detail-label" style="font-weight:700;color:var(--primary)">Position '+(idx+1)+'</span><span class="detail-value">'+esc(item.art||'\u2014')+'</span></div>'
       +'<div class="detail-row"><span class="detail-label">Nachname</span><span class="detail-value">'+esc(item.name||'\u2014')+'</span></div>'
+      +'<div class="detail-row"><span class="detail-label">Re.-Nr.</span><span class="detail-value">'+esc(item.nummer||inv.nummer||'\u2014')+'</span></div>'
       +'<div class="detail-row"><span class="detail-label">Zahlungseingang</span><span class="detail-value">'+datumFormat(item.datum||inv.datum)+'</span></div>'
       +'<div class="detail-row"><span class="detail-label">Inkl. MwSt.</span><span class="detail-value">'+eur(item.brutto)+'</span></div>'
       +'<div class="detail-row"><span class="detail-label">Ohne MwSt.</span><span class="detail-value">'+eur(item.netto)+'</span></div>'
@@ -615,7 +614,7 @@ async function generatePDF() {
     doc.text(item.art || '', colDef[0].x + 3, ty);
     doc.text(item.name || '', colDef[1].x + 3, ty);
     doc.setFontSize(7);
-    doc.text(inv.nummer || '', colDef[2].x + colDef[2].w/2, ty, {align:'center'});
+    doc.text(item.nummer || inv.nummer || '', colDef[2].x + colDef[2].w/2, ty, {align:'center'});
     doc.text(datumFormat(item.datum || inv.datum), colDef[3].x + colDef[3].w/2, ty, {align:'center'});
     doc.setFontSize(8);
     doc.text(eur(item.brutto), colDef[4].x + colDef[4].w - 3, ty, {align:'right'});
