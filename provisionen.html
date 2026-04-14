@@ -483,139 +483,229 @@ async function generatePDF() {
   if (!inv) { showView('list','Provisionen'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'mm',format:'a4'});
-  const pw=210, m=15, cw=pw-2*m;
-  let y=0;
-  const items = inv.items||[];
-  const totalProv = items.reduce((s,i) => s+(i.provBetrag||0),0);
-  const maxRows = 18; // Leerzeilen bis Tabelle voll
+  const pw = 210, ph = 297, m = 18, cw = pw - 2*m;
+  const items = inv.items || [];
+  const totalProv = items.reduce((s,i) => s + (i.provBetrag||0), 0);
+  const totalBrutto = items.reduce((s,i) => s + (i.brutto||0), 0);
+  const totalNetto = items.reduce((s,i) => s + (i.netto||0), 0);
+  const today = datumFormat(inv.datum);
+  const monat = inv.datum ? new Date(inv.datum).toLocaleString('de-DE',{month:'long', year:'numeric'}) : '';
+  let y = 0;
 
-  // === TITEL ===
-  doc.setFillColor(26,54,93); doc.rect(0,0,pw,18,'F');
-  doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont('helvetica','bold');
-  doc.text('Provisionsabrechnung - '+settings.firma, pw/2, 12, {align:'center'});
+  // ══════════════════════════════════════
+  // HEADER — dunkelblauer Balken
+  // ══════════════════════════════════════
+  doc.setFillColor(26, 54, 93);
+  doc.rect(0, 0, pw, 32, 'F');
 
-  // === TABELLE ===
-  y = 24;
-  doc.setTextColor(0,0,0); doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
+  // Titel
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('PROVISIONSABRECHNUNG', m, 15);
 
-  // Spalten-Definition (wie Excel)
-  const c = [
-    {l:'Art der Vermittl.', x:m, w:24},
-    {l:'K\u00e4ufer/Verk\u00e4ufer/Mieter/\nVermieter: Nachname', x:m+24, w:36},
-    {l:'Rechnungs-\nnummer', x:m+60, w:22},
-    {l:'Zahlungseingang\n(Datum)', x:m+82, w:24},
-    {l:'Rechnung\n(inklusive MwSt.)', x:m+106, w:24},
-    {l:'Rechnung\n(ohne MwSt.)', x:m+130, w:22},
-    {l:'Provision Keefer\n(in %)', x:m+152, w:18},
-    {l:'Provisionsbetrag\n(in \u20AC)', x:m+170, w:25}
+  // Firmenname rechts
+  doc.setFontSize(11);
+  doc.text(settings.firma, pw - m, 13, {align: 'right'});
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('Brenztal-Immobilien GmbH', pw - m, 20, {align: 'right'});
+  if (settings.adresse) doc.text(settings.adresse, pw - m, 26, {align: 'right'});
+
+  // ══════════════════════════════════════
+  // META-DATEN — Rechnungsnr, Datum, Monat
+  // ══════════════════════════════════════
+  y = 42;
+  doc.setTextColor(80, 80, 80);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+
+  // Linke Spalte
+  doc.setFont('helvetica', 'bold');
+  doc.text('Rechnungsnummer:', m, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(inv.nummer || '\u2014', m + 42, y);
+
+  // Rechte Spalte
+  doc.setFont('helvetica', 'bold');
+  doc.text('Datum:', pw - m - 50, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(today, pw - m - 50 + 16, y);
+
+  y += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Monat:', m, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(monat, m + 42, y);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('MwSt.:', pw - m - 50, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text((inv.mwstSatz||settings.mwst).toLocaleString('de-DE') + ' %', pw - m - 50 + 16, y);
+
+  // Trennlinie
+  y += 6;
+  doc.setDrawColor(26, 54, 93);
+  doc.setLineWidth(0.6);
+  doc.line(m, y, pw - m, y);
+
+  // ══════════════════════════════════════
+  // TABELLE — nur befüllte Zeilen
+  // ══════════════════════════════════════
+  y += 5;
+  const colDef = [
+    {label: 'Art der\nVermittlung',     w: 22, align: 'left'},
+    {label: 'K\u00e4ufer/Verk\u00e4ufer/\nMieter/Vermieter',  w: 32, align: 'left'},
+    {label: 'Re.-Nr.',                  w: 18, align: 'center'},
+    {label: 'Zahlungs-\neingang',       w: 22, align: 'center'},
+    {label: 'Rechnung\ninkl. MwSt.',    w: 26, align: 'right'},
+    {label: 'Rechnung\nohne MwSt.',     w: 26, align: 'right'},
+    {label: 'Provision\nKeefer %',      w: 18, align: 'center'},
+    {label: 'Provisions-\nbetrag \u20AC',  w: cw - 22 - 32 - 18 - 22 - 26 - 26 - 18, align: 'right'}
   ];
 
-  // Spaltenkopf (2-zeilig)
+  // Spalten-X berechnen
+  let cx = m;
+  colDef.forEach(c => { c.x = cx; cx += c.w; });
+
+  // Tabellenkopf
   const headH = 14;
-  doc.setFillColor(220,230,241); doc.rect(m, y, cw, headH, 'FD');
-  doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
-  c.forEach(col => {
-    const lines = col.l.split('\n');
-    const startY = lines.length > 1 ? y+5 : y+8;
-    lines.forEach((line,li) => doc.text(line, col.x+col.w/2, startY+li*4, {align:'center'}));
-    // Vertikale Linie
-    doc.line(col.x, y, col.x, y+headH);
+  doc.setFillColor(26, 54, 93);
+  doc.rect(m, y, cw, headH, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+
+  colDef.forEach(c => {
+    const lines = c.label.split('\n');
+    const ly = lines.length > 1 ? y + 5 : y + 8;
+    lines.forEach((line, li) => {
+      const tx = c.align === 'right' ? c.x + c.w - 2 : c.align === 'center' ? c.x + c.w/2 : c.x + 2;
+      doc.text(line, tx, ly + li * 4, {align: c.align === 'left' ? 'left' : c.align});
+    });
   });
-  doc.line(m+cw, y, m+cw, y+headH); // rechte Linie
   y += headH;
 
-  // Datenzeilen
-  doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
-  const rowH = 8;
-  for (let i = 0; i < maxRows; i++) {
-    const item = items[i] || null;
-    // Hintergrund abwechselnd
-    if (i%2===0) { doc.setFillColor(255,255,255); } else { doc.setFillColor(245,248,252); }
-    doc.rect(m, y, cw, rowH, 'FD');
-    // Vertikale Linien
-    c.forEach(col => doc.line(col.x, y, col.x, y+rowH));
-    doc.line(m+cw, y, m+cw, y+rowH);
+  // Datenzeilen — NUR befüllte
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const rowH = 9;
 
-    if (item) {
-      doc.text(item.art||'', c[0].x+2, y+5.5);
-      doc.text(item.name||'', c[1].x+2, y+5.5);
-      doc.text(inv.nummer||'', c[2].x+2, y+5.5);
-      doc.text(datumFormat(inv.datum), c[3].x+2, y+5.5);
-      doc.text(eur(item.brutto), c[4].x+c[4].w-2, y+5.5, {align:'right'});
-      doc.text(eur(item.netto), c[5].x+c[5].w-2, y+5.5, {align:'right'});
-      doc.text((item.provision||0).toLocaleString('de-DE')+' %', c[6].x+c[6].w/2, y+5.5, {align:'center'});
-      doc.text(eur(item.provBetrag), c[7].x+c[7].w-2, y+5.5, {align:'right'});
-    } else {
-      // Leere Zeile mit Platzhaltern
-      doc.setTextColor(180,180,180);
-      doc.text('-', c[4].x+c[4].w/2, y+5.5, {align:'center'});
-      doc.text('\u20AC', c[4].x+c[4].w-2, y+5.5, {align:'right'});
-      doc.text('-', c[5].x+c[5].w/2, y+5.5, {align:'center'});
-      doc.text('\u20AC', c[5].x+c[5].w-2, y+5.5, {align:'right'});
-      doc.text('\u20AC', c[7].x+c[7].w-2, y+5.5, {align:'right'});
-      doc.setTextColor(0,0,0);
-    }
+  items.forEach((item, idx) => {
+    // Seitenumbruch
+    if (y + rowH > 220) { doc.addPage(); y = 20; }
+
+    // Abwechselnder Hintergrund
+    if (idx % 2 === 0) { doc.setFillColor(245, 248, 253); }
+    else { doc.setFillColor(255, 255, 255); }
+    doc.rect(m, y, cw, rowH, 'F');
+
+    // Untere Linie
+    doc.setDrawColor(210, 218, 230);
+    doc.setLineWidth(0.2);
+    doc.line(m, y + rowH, m + cw, y + rowH);
+
+    doc.setTextColor(30, 30, 30);
+    const ty = y + 6;
+
+    doc.text(item.art || '', colDef[0].x + 2, ty);
+    doc.text(item.name || '', colDef[1].x + 2, ty);
+    doc.setFontSize(7.5);
+    doc.text(inv.nummer || '', colDef[2].x + colDef[2].w/2, ty, {align:'center'});
+    doc.text(today, colDef[3].x + colDef[3].w/2, ty, {align:'center'});
+    doc.setFontSize(8);
+    doc.text(eur(item.brutto), colDef[4].x + colDef[4].w - 2, ty, {align:'right'});
+    doc.text(eur(item.netto), colDef[5].x + colDef[5].w - 2, ty, {align:'right'});
+    doc.text((item.provision||0).toLocaleString('de-DE') + ' %', colDef[6].x + colDef[6].w/2, ty, {align:'center'});
+    doc.setFont('helvetica', 'bold');
+    doc.text(eur(item.provBetrag), colDef[7].x + colDef[7].w - 2, ty, {align:'right'});
+    doc.setFont('helvetica', 'normal');
+
     y += rowH;
-  }
+  });
 
-  // Summenzeile (gelb)
-  doc.setFillColor(255,255,0); doc.rect(m, y, cw, 10, 'FD');
-  c.forEach(col => doc.line(col.x, y, col.x, y+10));
-  doc.line(m+cw, y, m+cw, y+10);
-  doc.setFont('helvetica','bold'); doc.setFontSize(9);
-  doc.setTextColor(0,0,0);
-  doc.text('Summe: '+eur(totalProv), c[7].x+c[7].w-2, y+7, {align:'right'});
-  y += 10;
+  // ══════════════════════════════════════
+  // SUMMENZEILE
+  // ══════════════════════════════════════
+  doc.setFillColor(26, 54, 93);
+  doc.rect(m, y, cw, 11, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('SUMME', colDef[0].x + 3, y + 7.5);
+  doc.text(eur(totalBrutto), colDef[4].x + colDef[4].w - 2, y + 7.5, {align:'right'});
+  doc.text(eur(totalNetto), colDef[5].x + colDef[5].w - 2, y + 7.5, {align:'right'});
+  doc.setFontSize(10);
+  doc.text(eur(totalProv), colDef[7].x + colDef[7].w - 2, y + 7.5, {align:'right'});
+  y += 11;
 
-  // === UNTERSCHRIFTEN ===
-  y += 12;
-  const today = datumFormat(inv.datum) || datumFormat(new Date().toISOString().slice(0,10));
-  const sigW = 70;
+  // Rahmen um gesamte Tabelle
+  doc.setDrawColor(26, 54, 93);
+  doc.setLineWidth(0.5);
+  const tableTop = 56 + 5; // y position where table header started
+  // keine extra box — die Zeilen reichen
 
-  // Unterschrift 1: Heidi Keefer
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.text('Giengen, den  '+today, m, y);
-  doc.text('Unterschrift:', m+100, y);
-  doc.line(m+125, y+1, m+125+sigW, y+1);
-  y += 10;
-  doc.setFont('helvetica','bold');
-  doc.text(settings.firma, m+125+sigW/2, y, {align:'center'});
+  // ══════════════════════════════════════
+  // UNTERSCHRIFTEN
+  // ══════════════════════════════════════
+  // Position: immer im unteren Drittel
+  const sigY = Math.max(y + 20, 200);
+  const sigLineW = 60;
 
-  // Unterschrift 2: Geschäftsführer
-  y += 15;
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
-  doc.text('Giengen, den  '+today, m, y);
-  doc.text('Unterschrift:', m+100, y);
-  doc.line(m+125, y+1, m+125+sigW, y+1);
-  y += 5;
-  doc.setFontSize(7.5); doc.setTextColor(100,100,100);
-  doc.text('gepr\u00fcft, als richtig festgestellt und genehmigt:', m+60, y);
-  y += 8;
-  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0,0,0);
-  doc.text('Gesch\u00e4ftsf\u00fchrer Brenztal-Immobilien GmbH', m+125+sigW/2, y, {align:'center'});
+  doc.setTextColor(60, 60, 60);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
 
-  // === FUSSZEILE ===
-  y += 12;
-  doc.setDrawColor(0,0,0); doc.setLineWidth(0.5);
-  doc.line(m, y, m+cw, y);
-  y += 5;
-  doc.setFont('helvetica','bold'); doc.setFontSize(10);
-  doc.text('Volksbank Brenztal eG', m, y);
-  y += 5;
-  doc.setFontSize(14);
-  doc.text('Brenztal-Immobilien', m, y);
-  doc.setFontSize(8); doc.setFont('helvetica','normal');
-  doc.text('GmbH', m+58, y);
+  // --- Unterschrift 1: Heidi Keefer ---
+  doc.text('Giengen, den ' + today, m, sigY);
+  doc.text('Unterschrift:', m + 95, sigY);
+  doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.3);
+  doc.line(m + 120, sigY + 1, m + 120 + sigLineW, sigY + 1);
 
-  // Monat
-  const monat = inv.datum ? new Date(inv.datum).toLocaleString('de-DE',{month:'long',year:'numeric'}) : '';
-  doc.setFontSize(9); doc.setFont('helvetica','normal');
-  doc.text('Monat: '+monat, m+130, y);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+  doc.text(settings.firma, m + 120 + sigLineW/2, sigY + 7, {align:'center'});
 
-  // Dateiname
-  const names = items.map(i=>i.name).filter(Boolean).join('_');
-  const filename = (inv.nummer||'Rechnung').replace(/[^a-zA-Z0-9-]/g,'_')+'_'+names.replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df]/gi,'_')+'_'+(inv.datum||'').replace(/-/g,'')+'.pdf';
+  // --- Unterschrift 2: Geschäftsführer ---
+  const sig2Y = sigY + 22;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('Giengen, den ' + today, m, sig2Y);
+  doc.text('Unterschrift:', m + 95, sig2Y);
+  doc.line(m + 120, sig2Y + 1, m + 120 + sigLineW, sig2Y + 1);
 
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5);
+  doc.setTextColor(120, 120, 120);
+  doc.text('gepr\u00fcft, als richtig festgestellt und genehmigt:', m + 95, sig2Y + 6);
+
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+  doc.setTextColor(60, 60, 60);
+  doc.text('Gesch\u00e4ftsf\u00fchrer Brenztal-Immobilien GmbH', m + 120 + sigLineW/2, sig2Y + 12, {align:'center'});
+
+  // ══════════════════════════════════════
+  // FUSSZEILE — fester Platz unten
+  // ══════════════════════════════════════
+  const footY = ph - 18;
+  doc.setDrawColor(26, 54, 93); doc.setLineWidth(0.6);
+  doc.line(m, footY, pw - m, footY);
+
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Volksbank Brenztal eG', m, footY + 5);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.setTextColor(26, 54, 93);
+  doc.text('Brenztal-Immobilien', m, footY + 11);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+  doc.setTextColor(100, 100, 100);
+  doc.text('GmbH', m + 43, footY + 11);
+
+  doc.setFontSize(8);
+  doc.text('Monat: ' + monat, pw - m, footY + 5, {align:'right'});
+  doc.text('Erstellt: ' + new Date().toLocaleDateString('de-DE'), pw - m, footY + 11, {align:'right'});
+
+  // ══════════════════════════════════════
+  // EXPORT
+  // ══════════════════════════════════════
+  const names = items.map(i => i.name).filter(Boolean).join('_');
+  const filename = (inv.nummer||'Rechnung').replace(/[^a-zA-Z0-9-]/g,'_') + '_' + names.replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df]/gi,'_') + '_' + (inv.datum||'').replace(/-/g,'') + '.pdf';
   const blob = doc.output('blob');
 
   // 1. Web Share API (iOS + HTTPS)
@@ -631,7 +721,7 @@ async function generatePDF() {
     }
   }
 
-  // 2. Fallback: PDF im neuen Tab öffnen
+  // 2. Fallback: PDF im neuen Tab \u00f6ffnen
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
   toast('PDF ge\u00f6ffnet'); showView('list','Provisionen');
