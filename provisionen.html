@@ -417,7 +417,7 @@ function openForm(id) {
   formItems = inv && inv.items && inv.items.length
     ? inv.items.map(i => ({art:i.art,name:i.name,nummer:i.nummer||inv.nummer||'',datum:i.datum||inv.datum||'',brutto:i.brutto,provision:i.provision}))
     : [];
-  if (formItems.length === 0) addItemRow({art:'',name:'',nummer:defaultNr,datum:new Date().toISOString().slice(0,10),brutto:'',provision:''}); else renderItems();
+  if (formItems.length === 0) addItemRow({art:'',name:'',nummer:'',datum:new Date().toISOString().slice(0,10),brutto:'',provision:''}); else renderItems();
   showView('form', id ? 'Rechnung bearbeiten' : 'Neue Rechnung');
 }
 
