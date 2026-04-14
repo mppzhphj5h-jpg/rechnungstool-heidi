@@ -701,22 +701,19 @@ async function generatePDF() {
   // ══════════════════════════════════════
   // FUSSZEILE — fester Platz unten
   // ══════════════════════════════════════
-  const footY = ph - 18;
+  const footY = ph - 16;
   doc.setDrawColor(26, 54, 93); doc.setLineWidth(0.6);
   doc.line(m, footY, pw - m, footY);
 
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.text('Volksbank Brenztal eG', m, footY + 5);
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
   doc.setTextColor(26, 54, 93);
-  doc.text('Brenztal-Immobilien', m, footY + 11);
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(7);
+  doc.text('Brenztal-Immobilien GmbH', m, footY + 6);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
   doc.setTextColor(100, 100, 100);
-  doc.text('GmbH', m + 43, footY + 11);
+  doc.text('Volksbank Brenztal eG', m, footY + 11);
 
   doc.setFontSize(8);
-  doc.text('Monat: ' + monat, pw - m, footY + 5, {align:'right'});
+  doc.text('Monat: ' + monat, pw - m, footY + 6, {align:'right'});
   doc.text('Erstellt: ' + new Date().toLocaleDateString('de-DE'), pw - m, footY + 11, {align:'right'});
 
   // ══════════════════════════════════════
