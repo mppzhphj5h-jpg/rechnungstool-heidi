@@ -483,53 +483,142 @@ async function generatePDF() {
   if (!inv) { showView('list','Provisionen'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:'mm',format:'a4'});
-  const pw=210,m=20,cw=pw-2*m; let y=0;
-  doc.setFillColor(26,54,93); doc.rect(0,0,pw,40,'F');
-  doc.setTextColor(255,255,255); doc.setFontSize(20); doc.setFont('helvetica','bold');
-  doc.text('Provisionsabrechnung',m,18);
-  doc.setFontSize(11); doc.setFont('helvetica','normal'); doc.text(settings.firma,m,28);
-  if (settings.adresse) { doc.setFontSize(9); doc.text(settings.adresse,m,34); }
-  doc.setFontSize(12); doc.setFont('helvetica','bold');
-  doc.text('Nr. '+(inv.nummer||'\u2014'),pw-m,18,{align:'right'});
-  doc.setFont('helvetica','normal'); doc.setFontSize(10);
-  doc.text('Datum: '+datumFormat(inv.datum),pw-m,28,{align:'right'});
-  doc.text('MwSt.: '+(inv.mwstSatz||settings.mwst).toLocaleString('de-DE')+' %',pw-m,35,{align:'right'});
-  y=50; doc.setTextColor(0,0,0);
-  const cols=[{l:'Art',x:m,w:28},{l:'Nachname',x:m+28,w:30},{l:'Inkl. MwSt.',x:m+58,w:30},{l:'Ohne MwSt.',x:m+88,w:30},{l:'Prov. %',x:m+118,w:20},{l:'Provision \u20AC',x:m+138,w:32}];
-  doc.setFillColor(240,245,255); doc.rect(m,y,cw,10,'F');
-  doc.setDrawColor(180,195,215); doc.setLineWidth(0.3);
-  doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
-  cols.forEach(c => doc.text(c.l,c.x+2,y+7)); y+=10;
-  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  const pw=210, m=15, cw=pw-2*m;
+  let y=0;
   const items = inv.items||[];
-  items.forEach((item,idx) => {
-    if (y>265) { doc.addPage(); y=20; }
-    if (idx%2===0) { doc.setFillColor(249,250,252); doc.rect(m,y,cw,10,'F'); }
-    doc.line(m,y,m+cw,y);
-    doc.text(item.art||'\u2014',cols[0].x+2,y+7);
-    doc.text(item.name||'\u2014',cols[1].x+2,y+7);
-    doc.text(eur(item.brutto),cols[2].x+2,y+7);
-    doc.text(eur(item.netto),cols[3].x+2,y+7);
-    doc.text((item.provision||0).toLocaleString('de-DE')+' %',cols[4].x+2,y+7);
-    doc.text(eur(item.provBetrag),cols[5].x+2,y+7);
-    y+=10;
-  });
   const totalProv = items.reduce((s,i) => s+(i.provBetrag||0),0);
-  doc.setFillColor(26,54,93); doc.rect(m,y,cw,12,'F');
-  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(11);
-  doc.text('Gesamt-Provisionsbetrag:',m+4,y+8);
-  doc.text(eur(totalProv),m+cw-4,y+8,{align:'right'});
-  doc.setDrawColor(180,195,215); doc.setLineWidth(0.5); doc.rect(m,50,cw,y+12-50);
-  y+=25; doc.setTextColor(120,120,120); doc.setFont('helvetica','normal'); doc.setFontSize(8);
-  doc.text('Erstellt am '+new Date().toLocaleDateString('de-DE')+' | '+settings.firma,m,y);
-  doc.setFillColor(26,54,93); doc.rect(0,287,pw,10,'F');
+  const maxRows = 18; // Leerzeilen bis Tabelle voll
 
+  // === TITEL ===
+  doc.setFillColor(26,54,93); doc.rect(0,0,pw,18,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont('helvetica','bold');
+  doc.text('Provisionsabrechnung - '+settings.firma, pw/2, 12, {align:'center'});
+
+  // === TABELLE ===
+  y = 24;
+  doc.setTextColor(0,0,0); doc.setDrawColor(0,0,0); doc.setLineWidth(0.3);
+
+  // Spalten-Definition (wie Excel)
+  const c = [
+    {l:'Art der Vermittl.', x:m, w:24},
+    {l:'K\u00e4ufer/Verk\u00e4ufer/Mieter/\nVermieter: Nachname', x:m+24, w:36},
+    {l:'Rechnungs-\nnummer', x:m+60, w:22},
+    {l:'Zahlungseingang\n(Datum)', x:m+82, w:24},
+    {l:'Rechnung\n(inklusive MwSt.)', x:m+106, w:24},
+    {l:'Rechnung\n(ohne MwSt.)', x:m+130, w:22},
+    {l:'Provision Keefer\n(in %)', x:m+152, w:18},
+    {l:'Provisionsbetrag\n(in \u20AC)', x:m+170, w:25}
+  ];
+
+  // Spaltenkopf (2-zeilig)
+  const headH = 14;
+  doc.setFillColor(220,230,241); doc.rect(m, y, cw, headH, 'FD');
+  doc.setFont('helvetica','bold'); doc.setFontSize(6.5);
+  c.forEach(col => {
+    const lines = col.l.split('\n');
+    const startY = lines.length > 1 ? y+5 : y+8;
+    lines.forEach((line,li) => doc.text(line, col.x+col.w/2, startY+li*4, {align:'center'}));
+    // Vertikale Linie
+    doc.line(col.x, y, col.x, y+headH);
+  });
+  doc.line(m+cw, y, m+cw, y+headH); // rechte Linie
+  y += headH;
+
+  // Datenzeilen
+  doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+  const rowH = 8;
+  for (let i = 0; i < maxRows; i++) {
+    const item = items[i] || null;
+    // Hintergrund abwechselnd
+    if (i%2===0) { doc.setFillColor(255,255,255); } else { doc.setFillColor(245,248,252); }
+    doc.rect(m, y, cw, rowH, 'FD');
+    // Vertikale Linien
+    c.forEach(col => doc.line(col.x, y, col.x, y+rowH));
+    doc.line(m+cw, y, m+cw, y+rowH);
+
+    if (item) {
+      doc.text(item.art||'', c[0].x+2, y+5.5);
+      doc.text(item.name||'', c[1].x+2, y+5.5);
+      doc.text(inv.nummer||'', c[2].x+2, y+5.5);
+      doc.text(datumFormat(inv.datum), c[3].x+2, y+5.5);
+      doc.text(eur(item.brutto), c[4].x+c[4].w-2, y+5.5, {align:'right'});
+      doc.text(eur(item.netto), c[5].x+c[5].w-2, y+5.5, {align:'right'});
+      doc.text((item.provision||0).toLocaleString('de-DE')+' %', c[6].x+c[6].w/2, y+5.5, {align:'center'});
+      doc.text(eur(item.provBetrag), c[7].x+c[7].w-2, y+5.5, {align:'right'});
+    } else {
+      // Leere Zeile mit Platzhaltern
+      doc.setTextColor(180,180,180);
+      doc.text('-', c[4].x+c[4].w/2, y+5.5, {align:'center'});
+      doc.text('\u20AC', c[4].x+c[4].w-2, y+5.5, {align:'right'});
+      doc.text('-', c[5].x+c[5].w/2, y+5.5, {align:'center'});
+      doc.text('\u20AC', c[5].x+c[5].w-2, y+5.5, {align:'right'});
+      doc.text('\u20AC', c[7].x+c[7].w-2, y+5.5, {align:'right'});
+      doc.setTextColor(0,0,0);
+    }
+    y += rowH;
+  }
+
+  // Summenzeile (gelb)
+  doc.setFillColor(255,255,0); doc.rect(m, y, cw, 10, 'FD');
+  c.forEach(col => doc.line(col.x, y, col.x, y+10));
+  doc.line(m+cw, y, m+cw, y+10);
+  doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.setTextColor(0,0,0);
+  doc.text('Summe: '+eur(totalProv), c[7].x+c[7].w-2, y+7, {align:'right'});
+  y += 10;
+
+  // === UNTERSCHRIFTEN ===
+  y += 12;
+  const today = datumFormat(inv.datum) || datumFormat(new Date().toISOString().slice(0,10));
+  const sigW = 70;
+
+  // Unterschrift 1: Heidi Keefer
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text('Giengen, den  '+today, m, y);
+  doc.text('Unterschrift:', m+100, y);
+  doc.line(m+125, y+1, m+125+sigW, y+1);
+  y += 10;
+  doc.setFont('helvetica','bold');
+  doc.text(settings.firma, m+125+sigW/2, y, {align:'center'});
+
+  // Unterschrift 2: Geschäftsführer
+  y += 15;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text('Giengen, den  '+today, m, y);
+  doc.text('Unterschrift:', m+100, y);
+  doc.line(m+125, y+1, m+125+sigW, y+1);
+  y += 5;
+  doc.setFontSize(7.5); doc.setTextColor(100,100,100);
+  doc.text('gepr\u00fcft, als richtig festgestellt und genehmigt:', m+60, y);
+  y += 8;
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(0,0,0);
+  doc.text('Gesch\u00e4ftsf\u00fchrer Brenztal-Immobilien GmbH', m+125+sigW/2, y, {align:'center'});
+
+  // === FUSSZEILE ===
+  y += 12;
+  doc.setDrawColor(0,0,0); doc.setLineWidth(0.5);
+  doc.line(m, y, m+cw, y);
+  y += 5;
+  doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text('Volksbank Brenztal eG', m, y);
+  y += 5;
+  doc.setFontSize(14);
+  doc.text('Brenztal-Immobilien', m, y);
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.text('GmbH', m+58, y);
+
+  // Monat
+  const monat = inv.datum ? new Date(inv.datum).toLocaleString('de-DE',{month:'long',year:'numeric'}) : '';
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.text('Monat: '+monat, m+130, y);
+
+  // Dateiname
   const names = items.map(i=>i.name).filter(Boolean).join('_');
   const filename = (inv.nummer||'Rechnung').replace(/[^a-zA-Z0-9-]/g,'_')+'_'+names.replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df]/gi,'_')+'_'+(inv.datum||'').replace(/-/g,'')+'.pdf';
 
   const blob = doc.output('blob');
 
-  // 1. Versuch: Web Share API (funktioniert auf iOS mit HTTPS)
+  // 1. Web Share API (iOS + HTTPS)
   if (navigator.share) {
     try {
       const file = new File([blob], filename, {type:'application/pdf'});
@@ -542,7 +631,7 @@ async function generatePDF() {
     }
   }
 
-  // 2. Fallback: PDF als Blob-URL öffnen (Safari/Chrome PDF-Viewer mit Teilen-Button)
+  // 2. Fallback: PDF im neuen Tab öffnen
   const url = URL.createObjectURL(blob);
   window.open(url, '_blank');
   toast('PDF ge\u00f6ffnet'); showView('list','Provisionen');
