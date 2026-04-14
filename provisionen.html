@@ -435,7 +435,7 @@ async function saveInvoice(e) {
   });
   const inv = {
     id: currentId || Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-    nummer: items[0]?.nummer || '', datum: items[0]?.datum || '',
+    nummer: (items[0]?.datum || '').slice(0,7) || '', datum: items[0]?.datum || '',
     items, mwstSatz: settings.mwst, updatedAt: new Date().toISOString()
   };
   await dbPut(inv); currentId = inv.id;
@@ -520,26 +520,15 @@ async function generatePDF() {
 
   // Linke Spalte
   doc.setFont('helvetica', 'bold');
-  doc.text('Rechnungsnummer:', m, y);
+  doc.text('Monat:', m, y);
   doc.setFont('helvetica', 'normal');
-  doc.text(inv.nummer || '\u2014', m + 42, y);
+  doc.text(monat, m + 18, y);
 
   // Rechte Spalte
   doc.setFont('helvetica', 'bold');
-  doc.text('Datum:', pw - m - 50, y);
+  doc.text('MwSt.:', pw - m - 30, y);
   doc.setFont('helvetica', 'normal');
-  doc.text(today, pw - m - 50 + 16, y);
-
-  y += 6;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Monat:', m, y);
-  doc.setFont('helvetica', 'normal');
-  doc.text(monat, m + 42, y);
-
-  doc.setFont('helvetica', 'bold');
-  doc.text('MwSt.:', pw - m - 50, y);
-  doc.setFont('helvetica', 'normal');
-  doc.text((inv.mwstSatz||settings.mwst).toLocaleString('de-DE') + ' %', pw - m - 50 + 16, y);
+  doc.text((inv.mwstSatz||settings.mwst).toLocaleString('de-DE') + ' %', pw - m - 30 + 16, y);
 
   // Trennlinie
   y += 6;
