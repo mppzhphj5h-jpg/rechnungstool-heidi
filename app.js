@@ -172,7 +172,7 @@ function renderList() {
 let formItems = [];
 
 function addItemRow(item) {
-  item = item || { art: '', name: '', brutto: '', provision: '' };
+  item = item || { nummer: '', datum: new Date().toISOString().slice(0, 10), art: '', name: '', brutto: '', provision: '' };
   formItems.push(item);
   renderItems();
 }
@@ -189,6 +189,14 @@ function renderItems() {
       <div class="item-header">
         <span class="item-label">Position ${idx + 1}</span>
         ${formItems.length > 1 ? `<button type="button" class="item-remove" data-idx="${idx}">&times;</button>` : ''}
+      </div>
+      <div class="form-group">
+        <label>Rechnungsnummer</label>
+        <input type="text" class="fi-nummer" data-idx="${idx}" value="${esc(item.nummer || '')}" placeholder="z.B. 2026-001" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Zahlungseingang (Datum)</label>
+        <input type="date" class="fi-datum" data-idx="${idx}" value="${item.datum || new Date().toISOString().slice(0, 10)}">
       </div>
       <div class="form-group">
         <label>Art der Vermittlung</label>
@@ -248,6 +256,8 @@ function bindItemEvents() {
 }
 
 function syncItemsFromDOM() {
+  document.querySelectorAll('.fi-nummer').forEach(el => { formItems[el.dataset.idx].nummer = el.value; });
+  document.querySelectorAll('.fi-datum').forEach(el => { formItems[el.dataset.idx].datum = el.value; });
   document.querySelectorAll('.fi-art').forEach(el => { formItems[el.dataset.idx].art = el.value; });
   document.querySelectorAll('.fi-name').forEach(el => { formItems[el.dataset.idx].name = el.value; });
   document.querySelectorAll('.fi-brutto').forEach(el => { formItems[el.dataset.idx].brutto = el.value; });
@@ -282,13 +292,10 @@ function updateTotals() {
 function openForm(id) {
   currentId = id;
   const inv = id ? invoices.find(i => i.id === id) : null;
-
-  $('fNummer').value = inv ? inv.nummer : generateNummer();
-  $('fDatum').value = inv ? inv.datum : new Date().toISOString().slice(0, 10);
   $('btnDelete').classList.toggle('hidden', !id);
 
   formItems = inv && inv.items && inv.items.length
-    ? inv.items.map(i => ({ art: i.art, name: i.name, brutto: i.brutto, provision: i.provision }))
+    ? inv.items.map(i => ({ nummer: i.nummer || inv.nummer || '', datum: i.datum || inv.datum || '', art: i.art, name: i.name, brutto: i.brutto, provision: i.provision }))
     : [];
 
   if (formItems.length === 0) addItemRow();
@@ -312,6 +319,8 @@ async function saveInvoice(e) {
     const netto = calcNetto(brutto);
     const provision = parseFloat(fi.provision) || 0;
     return {
+      nummer: fi.nummer || '',
+      datum: fi.datum || '',
       art: fi.art,
       name: fi.name,
       brutto,
@@ -323,8 +332,8 @@ async function saveInvoice(e) {
 
   const inv = {
     id: currentId || Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    nummer: $('fNummer').value,
-    datum: $('fDatum').value,
+    nummer: (items[0]?.datum || '').slice(0, 7) || '',
+    datum: items[0]?.datum || '',
     items,
     mwstSatz: settings.mwst,
     updatedAt: new Date().toISOString()
@@ -376,6 +385,14 @@ function showDetail(id) {
         <span class="detail-value">${esc(item.name || '\u2014')}</span>
       </div>
       <div class="detail-row">
+        <span class="detail-label">Re.-Nr.</span>
+        <span class="detail-value">${esc(item.nummer || inv.nummer || '\u2014')}</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Zahlungseingang</span>
+        <span class="detail-value">${datumFormat(item.datum || inv.datum)}</span>
+      </div>
+      <div class="detail-row">
         <span class="detail-label">Rechnung (inkl. MwSt.)</span>
         <span class="detail-value">${eur(item.brutto)}</span>
       </div>
@@ -409,86 +426,146 @@ function showDetail(id) {
 // ─── PDF ───
 async function generatePDF() {
   const inv = invoices.find(i => i.id === currentId);
-  if (!inv) return;
+  if (!inv) { showView('list', 'Provisionen'); return; }
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pw = 210, m = 20, cw = pw - 2 * m;
+  const pw = 210, m = 18, cw = pw - 2 * m;
+  const items = inv.items || [];
+  const totalProv   = items.reduce((s, i) => s + (i.provBetrag || 0), 0);
+  const totalBrutto = items.reduce((s, i) => s + (i.brutto || 0), 0);
+  const totalNetto  = items.reduce((s, i) => s + (i.netto || 0), 0);
+  const monat = inv.datum ? new Date(inv.datum).toLocaleString('de-DE', { month: 'long', year: 'numeric' }) : '';
   let y = 0;
 
+  // Header
   doc.setFillColor(26, 54, 93);
-  doc.rect(0, 0, pw, 40, 'F');
+  doc.rect(0, 0, pw, 32, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('Provisionsabrechnung', m, 18);
+  doc.setFontSize(18);
+  doc.text('PROVISIONSABRECHNUNG', m, 15);
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.text(settings.firma, m, 28);
-  if (settings.adresse) { doc.setFontSize(9); doc.text(settings.adresse, m, 34); }
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Nr. ' + (inv.nummer || '\u2014'), pw - m, 18, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text('Datum: ' + datumFormat(inv.datum), pw - m, 28, { align: 'right' });
-  doc.text('MwSt.: ' + (inv.mwstSatz || settings.mwst).toLocaleString('de-DE') + ' %', pw - m, 35, { align: 'right' });
-
-  y = 50;
-  doc.setTextColor(0, 0, 0);
-
-  const cols = [
-    { label: 'Art', x: m, w: 28 },
-    { label: 'Nachname', x: m + 28, w: 30 },
-    { label: 'Inkl. MwSt.', x: m + 58, w: 30 },
-    { label: 'Ohne MwSt.', x: m + 88, w: 30 },
-    { label: 'Prov. %', x: m + 118, w: 20 },
-    { label: 'Provision \u20AC', x: m + 138, w: 32 }
-  ];
-
-  doc.setFillColor(240, 245, 255);
-  doc.rect(m, y, cw, 10, 'F');
-  doc.setDrawColor(180, 195, 215);
-  doc.setLineWidth(0.3);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  cols.forEach(c => doc.text(c.label, c.x + 2, y + 7));
-  y += 10;
-
+  doc.text(settings.firma, pw - m, 13, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  const items = inv.items || [];
+  doc.text('Brenztal-Immobilien GmbH', pw - m, 20, { align: 'right' });
+  if (settings.adresse) doc.text(settings.adresse, pw - m, 26, { align: 'right' });
 
-  items.forEach((item, idx) => {
-    if (y > 265) { doc.addPage(); y = 20; }
-    if (idx % 2 === 0) {
-      doc.setFillColor(249, 250, 252);
-      doc.rect(m, y, cw, 10, 'F');
-    }
-    doc.line(m, y, m + cw, y);
-    doc.text(item.art || '\u2014', cols[0].x + 2, y + 7);
-    doc.text(item.name || '\u2014', cols[1].x + 2, y + 7);
-    doc.text(eur(item.brutto), cols[2].x + 2, y + 7);
-    doc.text(eur(item.netto), cols[3].x + 2, y + 7);
-    doc.text((item.provision || 0).toLocaleString('de-DE') + ' %', cols[4].x + 2, y + 7);
-    doc.text(eur(item.provBetrag), cols[5].x + 2, y + 7);
-    y += 10;
-  });
+  // Meta
+  y = 42;
+  doc.setTextColor(80, 80, 80);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Monat:', m, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(monat, m + 18, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MwSt.:', pw - m - 30, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text((inv.mwstSatz || settings.mwst).toLocaleString('de-DE') + ' %', pw - m - 14, y);
+  y += 6;
+  doc.setDrawColor(26, 54, 93);
+  doc.setLineWidth(0.6);
+  doc.line(m, y, pw - m, y);
 
-  const totalProv = items.reduce((s, i) => s + (i.provBetrag || 0), 0);
+  // Tabelle
+  y += 5;
+  const colDef = [
+    { label: 'Art der\nVermittlung',                          w: 20, align: 'left' },
+    { label: 'K\u00e4ufer/Verk\u00e4ufer/\nMieter/Vermieter', w: 30, align: 'left' },
+    { label: 'Re.-Nr.',                                       w: 16, align: 'center' },
+    { label: 'Zahlungs-\neingang',                            w: 20, align: 'center' },
+    { label: 'Rechnung\ninkl. MwSt.',                         w: 26, align: 'right' },
+    { label: 'Rechnung\nohne MwSt.',                          w: 24, align: 'right' },
+    { label: 'Provision\nKeefer %',                           w: 16, align: 'center' },
+    { label: 'Provisions-\nbetrag \u20AC',                    w: 22, align: 'right' }
+  ];
+  let cx = m;
+  colDef.forEach(c => { c.x = cx; cx += c.w; });
+
+  const headH = 14;
   doc.setFillColor(26, 54, 93);
-  doc.rect(m, y, cw, 12, 'F');
+  doc.rect(m, y, cw, headH, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('Gesamt-Provisionsbetrag:', m + 4, y + 8);
-  doc.text(eur(totalProv), m + cw - 4, y + 8, { align: 'right' });
+  doc.setFontSize(7);
+  colDef.forEach((c, ci) => {
+    const lines = c.label.split('\n');
+    const ly = lines.length > 1 ? y + 5 : y + 8;
+    lines.forEach((line, li) => {
+      const tx = c.align === 'right' ? c.x + c.w - 3 : c.align === 'center' ? c.x + c.w / 2 : c.x + 3;
+      doc.text(line, tx, ly + li * 4, { align: c.align === 'left' ? 'left' : c.align });
+    });
+    if (ci > 0) { doc.setDrawColor(80, 110, 150); doc.setLineWidth(0.2); doc.line(c.x, y + 2, c.x, y + headH - 2); }
+  });
+  y += headH;
 
-  doc.setDrawColor(180, 195, 215);
-  doc.setLineWidth(0.5);
-  doc.rect(m, 50, cw, y + 12 - 50);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const baseRowH = 9, lineH = 3.5, pad = 2.5;
+  const tableStartY = y;
 
-  y += 25;
+  items.forEach((item, idx) => {
+    doc.setFontSize(8);
+    const artLines  = doc.splitTextToSize(item.art  || '', colDef[0].w - 2 * pad);
+    const nameLines = doc.splitTextToSize(item.name || '', colDef[1].w - 2 * pad);
+    doc.setFontSize(7);
+    const numLines  = doc.splitTextToSize(item.nummer || inv.nummer || '', colDef[2].w - 2 * pad);
+    doc.setFontSize(8);
+    const maxLines = Math.max(artLines.length, nameLines.length, numLines.length, 1);
+    const rowH = Math.max(baseRowH, maxLines * lineH + 2 * pad);
+
+    if (y + rowH > 220) { doc.addPage(); y = 20; }
+
+    doc.setFillColor(idx % 2 === 0 ? 245 : 255, idx % 2 === 0 ? 248 : 255, idx % 2 === 0 ? 253 : 255);
+    doc.rect(m, y, cw, rowH, 'F');
+    doc.setDrawColor(200, 210, 225); doc.setLineWidth(0.2);
+    doc.rect(m, y, cw, rowH);
+    colDef.forEach((c, ci) => { if (ci > 0) doc.line(c.x, y, c.x, y + rowH); });
+
+    doc.setTextColor(30, 30, 30);
+    const centerY = y + rowH / 2;
+    const singleY = centerY + 2.5;
+
+    doc.setFontSize(8);
+    const artStartY = centerY - ((artLines.length - 1) * lineH / 2) + 2.5;
+    artLines.forEach((line, li) => doc.text(line, colDef[0].x + pad, artStartY + li * lineH));
+    const nameStartY = centerY - ((nameLines.length - 1) * lineH / 2) + 2.5;
+    nameLines.forEach((line, li) => doc.text(line, colDef[1].x + pad, nameStartY + li * lineH));
+    doc.setFontSize(7);
+    const numStartY = centerY - ((numLines.length - 1) * lineH / 2) + 2.5;
+    numLines.forEach((line, li) => doc.text(line, colDef[2].x + colDef[2].w / 2, numStartY + li * lineH, { align: 'center' }));
+    doc.text(datumFormat(item.datum || inv.datum), colDef[3].x + colDef[3].w / 2, singleY, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text(eur(item.brutto),   colDef[4].x + colDef[4].w - pad, singleY, { align: 'right' });
+    doc.text(eur(item.netto),    colDef[5].x + colDef[5].w - pad, singleY, { align: 'right' });
+    doc.text((item.provision || 0).toLocaleString('de-DE') + ' %', colDef[6].x + colDef[6].w / 2, singleY, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(eur(item.provBetrag), colDef[7].x + colDef[7].w - pad, singleY, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    y += rowH;
+  });
+
+  // Summenzeile
+  doc.setFillColor(26, 54, 93);
+  doc.rect(m, y, cw, 11, 'F');
+  colDef.forEach((c, ci) => { if (ci > 0) { doc.setDrawColor(60, 90, 130); doc.setLineWidth(0.2); doc.line(c.x, y, c.x, y + 11); } });
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('SUMME', colDef[0].x + 3, y + 7.5);
+  doc.text(eur(totalBrutto), colDef[4].x + colDef[4].w - pad, y + 7.5, { align: 'right' });
+  doc.text(eur(totalNetto),  colDef[5].x + colDef[5].w - pad, y + 7.5, { align: 'right' });
+  doc.setFontSize(9);
+  doc.text(eur(totalProv),   colDef[7].x + colDef[7].w - pad, y + 7.5, { align: 'right' });
+  y += 11;
+
+  doc.setDrawColor(26, 54, 93); doc.setLineWidth(0.5);
+  doc.rect(m, tableStartY, cw, y - tableStartY);
+
+  // Footer
+  y += 12;
   doc.setTextColor(120, 120, 120);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -497,14 +574,14 @@ async function generatePDF() {
   doc.rect(0, 287, pw, 10, 'F');
 
   const names = items.map(i => i.name).filter(Boolean).join('_');
-  const filename = `${(inv.nummer || 'Rechnung').replace(/[^a-zA-Z0-9-]/g, '_')}_${names.replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df]/gi, '_')}_${(inv.datum || '').replace(/-/g, '')}.pdf`;
+  const filename = `Provision_${monat.replace(/\s/g, '_')}_${names.replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df]/gi, '_')}.pdf`;
 
   if (navigator.share) {
     try {
       const blob = doc.output('blob');
       const file = new File([blob], filename, { type: 'application/pdf' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Rechnung ' + inv.nummer });
+        await navigator.share({ files: [file], title: filename });
         toast('PDF geteilt');
         showView('list', 'Provisionen');
         return;
