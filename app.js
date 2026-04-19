@@ -343,8 +343,8 @@ async function saveInvoice(e) {
   currentId = inv.id;
   await loadInvoices();
   renderList();
-  toast('Gespeichert');
-  showDetail(inv.id);
+  toast('Gespeichert \u2013 PDF wird erstellt...');
+  await generatePDF();
 }
 
 async function deleteInvoice() {
