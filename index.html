@@ -105,9 +105,24 @@
   <script src="auth.js"></script>
   <script>
     // Auth-Guard: Seite erst anzeigen wenn Session bestätigt
-    AuthClient.requireAuth().then(session => {
-      if (session) document.body.style.visibility = 'visible';
-    });
+    // Bei jedem Fehler (CDN-Ausfall, kein Supabase, etc.) → Login-Seite
+    (async () => {
+      try {
+        if (typeof AuthClient === 'undefined') throw new Error('AuthClient nicht geladen');
+        const session = await AuthClient.requireAuth();
+        if (session) document.body.style.visibility = 'visible';
+        // Falls kein Session: requireAuth() leitet bereits weiter
+      } catch (e) {
+        console.error('Auth-Guard Fehler:', e);
+        window.location.replace('login.html');
+      }
+    })();
+    // Sicherheitsnetz: nach 8 Sekunden auf Login weiterleiten wenn Seite noch versteckt
+    setTimeout(() => {
+      if (document.body.style.visibility !== 'visible') {
+        window.location.replace('login.html');
+      }
+    }, 8000);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
   <script src="app.js"></script>

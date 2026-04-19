@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Icon Generator</title></head>
+<body>
+<canvas id="c512" width="512" height="512"></canvas>
+<canvas id="c192" width="192" height="192"></canvas>
+<br>
+<button onclick="download()">Icons herunterladen</button>
+<script>
+function drawIcon(canvas) {
+  const s = canvas.width;
+  const ctx = canvas.getContext('2d');
+  const r = s * 0.18; // corner radius
+
+  // Rounded background
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(s - r, 0);
+  ctx.quadraticCurveTo(s, 0, s, r);
+  ctx.lineTo(s, s - r);
+  ctx.quadraticCurveTo(s, s, s - r, s);
+  ctx.lineTo(r, s);
+  ctx.quadraticCurveTo(0, s, 0, s - r);
+  ctx.lineTo(0, r);
+  ctx.quadraticCurveTo(0, 0, r, 0);
+  ctx.closePath();
+
+  // Background gradient
+  const grad = ctx.createRadialGradient(s*0.35, s*0.3, 0, s*0.5, s*0.5, s*0.7);
+  grad.addColorStop(0, '#2a4a8a');
+  grad.addColorStop(1, '#0f2040');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Border glow
+  ctx.strokeStyle = 'rgba(100,150,255,0.3)';
+  ctx.lineWidth = s * 0.012;
+  ctx.stroke();
+
+  // ── Bar chart (left side, behind K) ──
+  const bars = [
+    { x: 0.10, h: 0.30, color: '#4caf50' }, // green
+    { x: 0.20, h: 0.44, color: '#d4af37' }, // gold
+    { x: 0.30, h: 0.36, color: '#5b8fd4' }, // blue
+  ];
+  const barW = s * 0.088;
+  const baseY = s * 0.74;
+
+  bars.forEach(b => {
+    const bh = s * b.h;
+    const bx = s * b.x;
+    const by = baseY - bh;
+    const rr = barW * 0.25;
+    ctx.beginPath();
+    ctx.moveTo(bx + rr, by);
+    ctx.lineTo(bx + barW - rr, by);
+    ctx.quadraticCurveTo(bx + barW, by, bx + barW, by + rr);
+    ctx.lineTo(bx + barW, by + bh);
+    ctx.lineTo(bx, by + bh);
+    ctx.lineTo(bx, by + rr);
+    ctx.quadraticCurveTo(bx, by, bx + rr, by);
+    ctx.closePath();
+    ctx.fillStyle = b.color;
+    ctx.fill();
+  });
+
+  // ── K letter ──
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = s * 0.04;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${s * 0.62}px Arial, sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.fillText('K', s * 0.56, s * 0.52);
+  ctx.restore();
+
+  // ── Yellow underline ──
+  const ulY = s * 0.80;
+  const ulX1 = s * 0.10;
+  const ulX2 = s * 0.88;
+  const ulH = s * 0.035;
+  const ulR = ulH / 2;
+  ctx.beginPath();
+  ctx.moveTo(ulX1 + ulR, ulY);
+  ctx.lineTo(ulX2 - ulR, ulY);
+  ctx.quadraticCurveTo(ulX2, ulY, ulX2, ulY + ulR);
+  ctx.quadraticCurveTo(ulX2, ulY + ulH, ulX2 - ulR, ulY + ulH);
+  ctx.lineTo(ulX1 + ulR, ulY + ulH);
+  ctx.quadraticCurveTo(ulX1, ulY + ulH, ulX1, ulY + ulR);
+  ctx.quadraticCurveTo(ulX1, ulY, ulX1 + ulR, ulY);
+  ctx.closePath();
+  ctx.fillStyle = '#d4af37';
+  ctx.fill();
+
+  // ── Curved arrow ──
+  ctx.save();
+  ctx.strokeStyle = '#f0c830';
+  ctx.lineWidth = s * 0.045;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(240,200,48,0.5)';
+  ctx.shadowBlur = s * 0.03;
+  ctx.beginPath();
+  ctx.moveTo(s * 0.08, s * 0.70);
+  ctx.bezierCurveTo(
+    s * 0.25, s * 0.30,
+    s * 0.55, s * 0.15,
+    s * 0.88, s * 0.12
+  );
+  ctx.stroke();
+
+  // Arrowhead
+  const ax = s * 0.88, ay = s * 0.12;
+  const angle = Math.atan2(-0.18, 0.33);
+  ctx.fillStyle = '#f0c830';
+  ctx.beginPath();
+  ctx.translate(ax, ay);
+  ctx.rotate(angle);
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-s * 0.10, -s * 0.04);
+  ctx.lineTo(-s * 0.07, s * 0.04);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+drawIcon(document.getElementById('c512'));
+drawIcon(document.getElementById('c192'));
+
+function download() {
+  ['c512', 'c192'].forEach(id => {
+    const c = document.getElementById(id);
+    const a = document.createElement('a');
+    a.download = id === 'c512' ? 'icon-512.png' : 'icon-192.png';
+    a.href = c.toDataURL('image/png');
+    a.click();
+  });
+}
+</script>
+</body>
+</html>
