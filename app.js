@@ -1,7 +1,6 @@
 /* ===== Provisionsabrechnung PWA ===== */
 'use strict';
 
-let db;
 let invoices = [];
 let currentId = null;
 let settings = { mwst: 19, firma: 'Heidi Keefer', adresse: '' };
@@ -11,44 +10,76 @@ const views = { list: $('viewList'), form: $('viewForm'), detail: $('viewDetail'
 
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', async () => {
-  await initDB();
   loadSettings();
+  await migrateFromIndexedDB();
   await loadInvoices();
   renderList();
   bindEvents();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
 });
 
-// ─── IndexedDB ───
-function initDB() {
-  return new Promise((resolve, reject) => {
+// ─── Supabase DB ───
+const _db = AuthClient.supabase;
+
+async function dbGetAll() {
+  const { data, error } = await _db.from('invoices').select('data').order('datum', { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(r => r.data);
+}
+
+async function dbPut(inv) {
+  const session = await AuthClient.getSession();
+  const { error } = await _db.from('invoices').upsert({
+    id: inv.id,
+    user_id: session.user.id,
+    data: inv,
+    datum: inv.datum || null
+  });
+  if (error) { toast('Fehler beim Speichern'); throw error; }
+}
+
+async function dbDelete(id) {
+  const { error } = await _db.from('invoices').delete().eq('id', id);
+  if (error) { toast('Fehler beim Löschen'); throw error; }
+}
+
+async function dbClear() {
+  const { error } = await _db.from('invoices').delete().not('id', 'is', null);
+  if (error) { toast('Fehler beim Löschen'); throw error; }
+}
+
+// ─── Migration: lokale IndexedDB → Supabase ───
+async function migrateFromIndexedDB() {
+  return new Promise(resolve => {
     const req = indexedDB.open('ProvisionenDB', 2);
-    req.onupgradeneeded = e => {
-      const d = e.target.result;
-      if (!d.objectStoreNames.contains('invoices')) {
-        d.createObjectStore('invoices', { keyPath: 'id' });
-      }
+    req.onupgradeneeded = () => {};
+    req.onerror = () => resolve();
+    req.onsuccess = async e => {
+      const idb = e.target.result;
+      if (!idb.objectStoreNames.contains('invoices')) { idb.close(); resolve(); return; }
+      const all = idb.transaction('invoices', 'readonly').objectStore('invoices').getAll();
+      all.onerror = () => { idb.close(); resolve(); };
+      all.onsuccess = async () => {
+        const local = all.result || [];
+        if (local.length === 0) { idb.close(); resolve(); return; }
+
+        const { data: existing } = await _db.from('invoices').select('id').limit(1);
+        if (existing && existing.length > 0) { idb.close(); resolve(); return; }
+
+        const session = await AuthClient.getSession();
+        if (!session) { idb.close(); resolve(); return; }
+
+        for (const inv of local) {
+          await _db.from('invoices').upsert({
+            id: inv.id, user_id: session.user.id, data: inv, datum: inv.datum || null
+          });
+        }
+        idb.transaction('invoices', 'readwrite').objectStore('invoices').clear();
+        idb.close();
+        toast(`${local.length} lokale Rechnung${local.length !== 1 ? 'en' : ''} übertragen`);
+        resolve();
+      };
     };
-    req.onsuccess = e => { db = e.target.result; resolve(); };
-    req.onerror = () => reject(req.error);
-  });
-}
-function dbGetAll() {
-  return new Promise((res, rej) => {
-    const r = db.transaction('invoices', 'readonly').objectStore('invoices').getAll();
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-  });
-}
-function dbPut(item) {
-  return new Promise((res, rej) => {
-    const r = db.transaction('invoices', 'readwrite').objectStore('invoices').put(item);
-    r.onsuccess = () => res(); r.onerror = () => rej(r.error);
-  });
-}
-function dbDelete(id) {
-  return new Promise((res, rej) => {
-    const r = db.transaction('invoices', 'readwrite').objectStore('invoices').delete(id);
-    r.onsuccess = () => res(); r.onerror = () => rej(r.error);
   });
 }
 
@@ -305,7 +336,6 @@ async function saveInvoice(e) {
   renderList();
   toast('Gespeichert \u2013 PDF wird erstellt...');
 
-  // Kurze Pause damit der Toast sichtbar wird
   await new Promise(r => setTimeout(r, 300));
   await generatePDF();
 }
@@ -386,7 +416,6 @@ async function generatePDF() {
   const pw = 210, m = 20, cw = pw - 2 * m;
   let y = 0;
 
-  // Header
   doc.setFillColor(26, 54, 93);
   doc.rect(0, 0, pw, 40, 'F');
   doc.setTextColor(255, 255, 255);
@@ -408,7 +437,6 @@ async function generatePDF() {
   y = 50;
   doc.setTextColor(0, 0, 0);
 
-  // Table header
   const cols = [
     { label: 'Art', x: m, w: 28 },
     { label: 'Nachname', x: m + 28, w: 30 },
@@ -427,7 +455,6 @@ async function generatePDF() {
   cols.forEach(c => doc.text(c.label, c.x + 2, y + 7));
   y += 10;
 
-  // Rows
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   const items = inv.items || [];
@@ -448,7 +475,6 @@ async function generatePDF() {
     y += 10;
   });
 
-  // Total row
   const totalProv = items.reduce((s, i) => s + (i.provBetrag || 0), 0);
   doc.setFillColor(26, 54, 93);
   doc.rect(m, y, cw, 12, 'F');
@@ -458,12 +484,10 @@ async function generatePDF() {
   doc.text('Gesamt-Provisionsbetrag:', m + 4, y + 8);
   doc.text(eur(totalProv), m + cw - 4, y + 8, { align: 'right' });
 
-  // Border
   doc.setDrawColor(180, 195, 215);
   doc.setLineWidth(0.5);
   doc.rect(m, 50, cw, y + 12 - 50);
 
-  // Footer
   y += 25;
   doc.setTextColor(120, 120, 120);
   doc.setFont('helvetica', 'normal');
@@ -472,11 +496,9 @@ async function generatePDF() {
   doc.setFillColor(26, 54, 93);
   doc.rect(0, 287, pw, 10, 'F');
 
-  // File name
   const names = items.map(i => i.name).filter(Boolean).join('_');
   const filename = `${(inv.nummer || 'Rechnung').replace(/[^a-zA-Z0-9-]/g, '_')}_${names.replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df]/gi, '_')}_${(inv.datum || '').replace(/-/g, '')}.pdf`;
 
-  // Share or download
   if (navigator.share) {
     try {
       const blob = doc.output('blob');
@@ -492,7 +514,6 @@ async function generatePDF() {
     }
   }
 
-  // Fallback: download
   doc.save(filename);
   toast('PDF heruntergeladen');
   showView('list', 'Provisionen');
@@ -528,7 +549,7 @@ async function importData(file) {
 
 async function clearAllData() {
   if (!confirm('Wirklich ALLE Daten l\u00f6schen?')) return;
-  db.transaction('invoices', 'readwrite').objectStore('invoices').clear();
+  await dbClear();
   await loadInvoices();
   renderList();
   toast('Alle Daten gel\u00f6scht');
