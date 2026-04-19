@@ -67,7 +67,7 @@ header h1 {
 .header-btn:active { background: rgba(255,255,255,0.15); }
 
 .header-left, .header-right { min-width: 44px; display: flex; }
-.header-right { justify-content: flex-end; }
+.header-right { justify-content: flex-end; gap: 2px; }
 
 .hidden { display: none !important; }
 

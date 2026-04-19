@@ -1,4 +1,4 @@
-const CACHE_NAME = 'provision-v6';
+const CACHE_NAME = 'provision-v7';
 const ASSETS = [
   './manifest.json',
   './icon-192.png',
@@ -19,8 +19,19 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// Network first, cache fallback — immer neueste Version laden
 self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+
+  // HTML und JS immer direkt vom Netz — nie aus dem Cache
+  // So wird sichergestellt, dass immer die aktuelle Version geladen wird
+  if (url.pathname.endsWith('.html') || url.pathname.endsWith('.js')) {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Bilder, CSS, Manifest: Network-first, Cache als Fallback
   e.respondWith(
     fetch(e.request).then(resp => {
       if (resp.ok && e.request.method === 'GET') {

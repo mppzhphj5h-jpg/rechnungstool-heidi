@@ -668,4 +668,7 @@ function bindEvents() {
   $('importFile').addEventListener('change', e => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; });
   $('btnClearAll').addEventListener('click', clearAllData);
   $('btnLogout').addEventListener('click', () => AuthClient.signOut());
+  $('btnHeaderLogout').addEventListener('click', () => {
+    if (confirm('Wirklich abmelden?')) AuthClient.signOut();
+  });
 }
