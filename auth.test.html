@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Auth Smoke-Tests</title>
+  <style>
+    body { font-family: monospace; padding: 24px; background: #f7f8fa; }
+    .pass { color: green; } .fail { color: red; } .skip { color: #718096; }
+    h2 { margin: 0 0 16px; color: #1a365d; }
+    pre { background: #fff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Auth Smoke-Tests</h2>
+  <pre id="out"></pre>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+  const out = document.getElementById('out');
+  let pass = 0, fail = 0;
+
+  function log(label, ok, detail) {
+    const cls = ok === null ? 'skip' : ok ? 'pass' : 'fail';
+    const icon = ok === null ? '⊘' : ok ? '✓' : '✗';
+    out.innerHTML += `<span class="${cls}">${icon} ${label}</span>${detail ? ' — ' + detail : ''}\n`;
+    if (ok === true) pass++;
+    if (ok === false) fail++;
+  }
+
+  async function run() {
+    // 1. config.js geladen?
+    log('SUPABASE_URL definiert', typeof SUPABASE_URL !== 'undefined');
+    log('SUPABASE_ANON_KEY definiert', typeof SUPABASE_ANON_KEY !== 'undefined');
+
+    const configured = SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '';
+    log('Werte in config.js ausgefüllt', configured || null,
+      configured ? '' : 'ÜBERSPRUNGEN – config.js enthält noch Platzhalter');
+
+    // 2. Supabase-SDK geladen?
+    log('Supabase SDK geladen', typeof supabase !== 'undefined' && typeof supabase.createClient === 'function');
+
+    // 3. AuthClient verfügbar?
+    log('AuthClient global verfügbar', typeof AuthClient === 'object');
+    log('AuthClient.getSession Funktion', typeof AuthClient?.getSession === 'function');
+    log('AuthClient.signIn Funktion', typeof AuthClient?.signIn === 'function');
+    log('AuthClient.signUp Funktion', typeof AuthClient?.signUp === 'function');
+    log('AuthClient.signOut Funktion', typeof AuthClient?.signOut === 'function');
+    log('AuthClient.resetPassword Funktion', typeof AuthClient?.resetPassword === 'function');
+    log('AuthClient.requireAuth Funktion', typeof AuthClient?.requireAuth === 'function');
+
+    // 4. Session-Abruf (nur wenn konfiguriert)
+    if (configured) {
+      try {
+        const session = await AuthClient.getSession();
+        log('getSession() liefert null (nicht eingeloggt)', session === null);
+      } catch(e) {
+        log('getSession() wirft keinen Fehler', false, e.message);
+      }
+    } else {
+      log('getSession() Livetest', null, 'ÜBERSPRUNGEN – config.js nicht ausgefüllt');
+    }
+
+    // 5. login.html erreichbar?
+    try {
+      const r = await fetch('login.html', { method: 'HEAD' });
+      log('login.html erreichbar (HTTP ' + r.status + ')', r.ok);
+    } catch(e) {
+      log('login.html erreichbar', null, 'ÜBERSPRUNGEN – kein HTTP-Server aktiv');
+    }
+
+    out.innerHTML += `\n<strong>${pass} bestanden, ${fail} fehlgeschlagen</strong>\n`;
+  }
+
+  run();
+  </script>
+</body>
+</html>

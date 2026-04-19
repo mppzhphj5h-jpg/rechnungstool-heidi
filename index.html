@@ -11,6 +11,8 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>Provisionsabrechnung</title>
   <link rel="stylesheet" href="style.css">
+  <!-- Verhindert Flash: Seite bleibt unsichtbar bis Session geprüft -->
+  <style>body { visibility: hidden; }</style>
 </head>
 <body>
   <!-- Header -->
@@ -101,12 +103,23 @@
       <input type="file" id="importFile" accept=".json" class="hidden">
       <hr>
       <button class="btn btn-danger" id="btnClearAll">Alle Daten l&ouml;schen</button>
+      <hr>
+      <button class="btn btn-secondary" id="btnLogout">Abmelden</button>
     </div>
   </main>
 
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    // Auth-Guard: Seite erst anzeigen wenn Session bestätigt
+    AuthClient.requireAuth().then(session => {
+      if (session) document.body.style.visibility = 'visible';
+    });
+  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="app.js"></script>
 </body>

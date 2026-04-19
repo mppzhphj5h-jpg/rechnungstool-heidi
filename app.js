@@ -565,4 +565,5 @@ function bindEvents() {
   $('btnImport').addEventListener('click', () => $('importFile').click());
   $('importFile').addEventListener('change', e => { if (e.target.files[0]) importData(e.target.files[0]); e.target.value = ''; });
   $('btnClearAll').addEventListener('click', clearAllData);
+  $('btnLogout').addEventListener('click', () => AuthClient.signOut());
 }
