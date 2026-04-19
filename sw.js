@@ -1,11 +1,8 @@
-const CACHE_NAME = 'provision-v3';
+const CACHE_NAME = 'provision-v5';
 const ASSETS = [
-  './',
-  './provisionen.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png',
-  'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'
+  './icon-512.png'
 ];
 
 self.addEventListener('install', e => {
@@ -31,6 +28,6 @@ self.addEventListener('fetch', e => {
         caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
       }
       return resp;
-    }).catch(() => caches.match(e.request).then(r => r || caches.match('./provisionen.html')))
+    }).catch(() => caches.match(e.request))
   );
 });
