@@ -343,10 +343,8 @@ async function saveInvoice(e) {
   currentId = inv.id;
   await loadInvoices();
   renderList();
-  toast('Gespeichert \u2013 PDF wird erstellt...');
-
-  await new Promise(r => setTimeout(r, 300));
-  await generatePDF();
+  toast('Gespeichert');
+  showDetail(inv.id);
 }
 
 async function deleteInvoice() {
@@ -576,22 +574,28 @@ async function generatePDF() {
   const names = items.map(i => i.name).filter(Boolean).join('_');
   const filename = `Provision_${monat.replace(/\s/g, '_')}_${names.replace(/[^a-zA-Z0-9\u00e4\u00f6\u00fc\u00c4\u00d6\u00dc\u00df]/gi, '_')}.pdf`;
 
-  if (navigator.share) {
+  const blob = doc.output('blob');
+
+  if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'application/pdf' })] })) {
     try {
-      const blob = doc.output('blob');
-      const file = new File([blob], filename, { type: 'application/pdf' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: filename });
-        toast('PDF geteilt');
-        showView('list', 'Provisionen');
-        return;
-      }
+      await navigator.share({ files: [new File([blob], filename, { type: 'application/pdf' })], title: filename });
+      toast('PDF geteilt');
+      showView('list', 'Provisionen');
+      return;
     } catch (err) {
       if (err.name === 'AbortError') { showView('list', 'Provisionen'); return; }
+      // Bei anderen Fehlern (z.B. NotAllowedError) → Download-Fallback
     }
   }
 
-  doc.save(filename);
+  // Download-Fallback
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
   toast('PDF heruntergeladen');
   showView('list', 'Provisionen');
 }
