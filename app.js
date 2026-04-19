@@ -656,7 +656,7 @@ function bindEvents() {
   $('invoiceForm').addEventListener('submit', saveInvoice);
   $('btnDelete').addEventListener('click', deleteInvoice);
   $('btnAddItem').addEventListener('click', () => { syncItemsFromDOM(); addItemRow(); });
-  $('btnPdf').addEventListener('click', generatePDF);
+  $('btnPdf').addEventListener('click', () => generatePDF().catch(e => toast('Fehler: ' + e.message)));
   $('btnEdit').addEventListener('click', () => openForm(currentId));
   $('btnSaveSettings').addEventListener('click', saveSettings);
   $('btnExport').addEventListener('click', exportData);
