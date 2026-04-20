@@ -562,8 +562,35 @@ async function generatePDF() {
   doc.setDrawColor(26, 54, 93); doc.setLineWidth(0.5);
   doc.rect(m, tableStartY, cw, y - tableStartY);
 
+  // ── Unterschriftenfelder ──
+  y += 14;
+  const sigW = (cw - 14) / 3;
+  const sigLabels = ['Erstellt:', 'Gepr\u00fcft:', 'Genehmigt:'];
+  sigLabels.forEach((lbl, i) => {
+    const sx = m + i * (sigW + 7);
+    // Rahmen
+    doc.setDrawColor(26, 54, 93);
+    doc.setLineWidth(0.3);
+    doc.rect(sx, y, sigW, 18);
+    // Label oben links
+    doc.setTextColor(26, 54, 93);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.text(lbl, sx + 2.5, y + 5);
+    // Unterschriftslinie
+    doc.setDrawColor(100, 120, 150);
+    doc.setLineWidth(0.3);
+    doc.line(sx + 2.5, y + 14, sx + sigW - 2.5, y + 14);
+    // "Datum / Unterschrift" Beschriftung
+    doc.setTextColor(140, 140, 140);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.text('Datum / Unterschrift', sx + sigW / 2, y + 17, { align: 'center' });
+  });
+  y += 18;
+
   // Footer
-  y += 12;
+  y += 8;
   doc.setTextColor(120, 120, 120);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
