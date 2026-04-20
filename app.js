@@ -573,8 +573,8 @@ async function generatePDF() {
   const sigWlarge = (cw - sigGap) * 0.63;  // Erstellt / Genehmigt
 
   const boxes = [
-    { label: 'Erstellt / Genehmigt:', x: m,                    w: sigWlarge },
-    { label: 'Gepr\u00fcft:',         x: m + sigWlarge + sigGap, w: sigWsmall },
+    { label: 'Erstellt:',               x: m,                    w: sigWsmall },
+    { label: 'Gepr\u00fcft / Genehmigt:', x: m + sigWsmall + sigGap, w: sigWlarge },
   ];
 
   boxes.forEach(b => {
