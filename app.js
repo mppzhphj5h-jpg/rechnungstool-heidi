@@ -562,39 +562,43 @@ async function generatePDF() {
   doc.setDrawColor(26, 54, 93); doc.setLineWidth(0.5);
   doc.rect(m, tableStartY, cw, y - tableStartY);
 
-  // ── Unterschriftenfelder ──
-  y += 14;
-  const sigW = (cw - 14) / 3;
-  const sigLabels = ['Erstellt:', 'Gepr\u00fcft:', 'Genehmigt:'];
-  sigLabels.forEach((lbl, i) => {
-    const sx = m + i * (sigW + 7);
-    // Rahmen
+  // ── Unterschriftenfelder (fest am Seitenende, Fallback wenn Tabelle lang) ──
+  const sigH = 20;
+  const footerY = 278; // Oberkante Footer-Text
+  const sigY = Math.min(footerY - sigH - 10, Math.max(y + 14, 240));
+
+  // Linkes Kästchen: Erstellt / Genehmigt (doppelt breit)
+  const sigGap = 8;
+  const sigWsmall = (cw - sigGap) * 0.37;  // Geprüft
+  const sigWlarge = (cw - sigGap) * 0.63;  // Erstellt / Genehmigt
+
+  const boxes = [
+    { label: 'Erstellt / Genehmigt:', x: m,                    w: sigWlarge },
+    { label: 'Gepr\u00fcft:',         x: m + sigWlarge + sigGap, w: sigWsmall },
+  ];
+
+  boxes.forEach(b => {
     doc.setDrawColor(26, 54, 93);
     doc.setLineWidth(0.3);
-    doc.rect(sx, y, sigW, 18);
-    // Label oben links
+    doc.rect(b.x, sigY, b.w, sigH);
     doc.setTextColor(26, 54, 93);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.text(lbl, sx + 2.5, y + 5);
-    // Unterschriftslinie
+    doc.text(b.label, b.x + 2.5, sigY + 5.5);
     doc.setDrawColor(100, 120, 150);
     doc.setLineWidth(0.3);
-    doc.line(sx + 2.5, y + 14, sx + sigW - 2.5, y + 14);
-    // "Datum / Unterschrift" Beschriftung
+    doc.line(b.x + 2.5, sigY + 15.5, b.x + b.w - 2.5, sigY + 15.5);
     doc.setTextColor(140, 140, 140);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
-    doc.text('Datum / Unterschrift', sx + sigW / 2, y + 17, { align: 'center' });
+    doc.text('Datum / Unterschrift', b.x + b.w / 2, sigY + 19, { align: 'center' });
   });
-  y += 18;
 
   // Footer
-  y += 8;
   doc.setTextColor(120, 120, 120);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text('Erstellt am ' + new Date().toLocaleDateString('de-DE') + ' | ' + settings.firma, m, y);
+  doc.text('Erstellt am ' + new Date().toLocaleDateString('de-DE') + ' | ' + settings.firma, m, footerY);
   doc.setFillColor(26, 54, 93);
   doc.rect(0, 287, pw, 10, 'F');
 
