@@ -569,8 +569,8 @@ async function generatePDF() {
 
   // Linkes Kästchen: Erstellt / Genehmigt (doppelt breit)
   const sigGap = 8;
-  const sigWsmall = (cw - sigGap) * 0.37;  // Geprüft
-  const sigWlarge = (cw - sigGap) * 0.63;  // Erstellt / Genehmigt
+  const sigWsmall = (cw - sigGap) / 2;
+  const sigWlarge = (cw - sigGap) / 2;
 
   const boxes = [
     { label: 'Erstellt:',               x: m,                    w: sigWsmall },
