@@ -254,6 +254,56 @@
     btn.textContent = loading ? 'Bitte warten…' : btn.dataset.orig;
   }
 
+  // Übersetzt Supabase-Auth-Fehler in deutsche, verständliche Meldungen.
+  // Matcht primär über error.code (Supabase-JS v2), mit Fallback auf error.message.
+  // Unbekannte Fehler werden im Klartext angezeigt, damit die Ursache nicht verschluckt wird.
+  function translateAuthError(error, context) {
+    if (!error) return 'Unbekannter Fehler.';
+    // Diagnose-Hilfe in DevTools
+    try { console.error('[Auth ' + context + ']', error); } catch(_) {}
+
+    const code = (error.code || '').toString();
+    const msg  = (error.message || '').toString();
+    const status = error.status;
+
+    // Netzwerk / Verbindung (z.B. fetch failed, kein Internet)
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || error.name === 'TypeError') {
+      return 'Keine Verbindung zum Server. Bitte Internetverbindung prüfen und erneut versuchen.';
+    }
+
+    // Bekannte Supabase-Codes
+    switch (code) {
+      case 'invalid_credentials':
+        return 'E-Mail oder Passwort ist falsch.';
+      case 'email_not_confirmed':
+        return 'Bitte bestätige zuerst deine E-Mail-Adresse (Link in deinem Postfach).';
+      case 'user_not_found':
+        return 'Es existiert kein Konto mit dieser E-Mail-Adresse.';
+      case 'user_already_exists':
+      case 'email_exists':
+        return 'Diese E-Mail-Adresse ist bereits registriert.';
+      case 'weak_password':
+        return 'Passwort ist zu schwach. Bitte mindestens 8 Zeichen mit Buchstaben und Zahlen wählen.';
+      case 'over_request_rate_limit':
+      case 'over_email_send_rate_limit':
+        return 'Zu viele Versuche. Bitte ein paar Minuten warten und erneut versuchen.';
+      case 'validation_failed':
+        return 'Eingabe ungültig: ' + (msg || 'Bitte E-Mail-Format prüfen.');
+      case 'signup_disabled':
+        return 'Registrierung ist derzeit deaktiviert.';
+    }
+
+    // Fallback über Message-Text (alte SDK-Versionen)
+    if (msg.includes('Invalid login credentials')) return 'E-Mail oder Passwort ist falsch.';
+    if (msg.includes('Email not confirmed'))      return 'Bitte bestätige zuerst deine E-Mail-Adresse (Link in deinem Postfach).';
+    if (msg.includes('already registered'))       return 'Diese E-Mail-Adresse ist bereits registriert.';
+    if (msg.toLowerCase().includes('rate limit')) return 'Zu viele Versuche. Bitte kurz warten und erneut versuchen.';
+
+    // Unbekannt: echte Server-Meldung anzeigen, damit der Fehler nicht verschluckt wird
+    const detail = msg || ('HTTP ' + (status || '?'));
+    return 'Anmeldung fehlgeschlagen: ' + detail;
+  }
+
   // ── Tabs ──
   const tabs = document.querySelectorAll('.auth-tab');
   const panels = document.querySelectorAll('.auth-panel');
@@ -291,16 +341,16 @@
     if (!email || !pw) { showError(errorEl, 'Bitte E-Mail und Passwort eingeben.'); return; }
 
     setLoading(btn, true);
-    const { error } = await _sb.auth.signInWithPassword({ email, password: pw });
+    let result;
+    try {
+      result = await _sb.auth.signInWithPassword({ email, password: pw });
+    } catch (e) {
+      result = { error: e };
+    }
     setLoading(btn, false);
 
-    if (error) {
-      const msg = error.message.includes('Invalid login credentials')
-        ? 'E-Mail oder Passwort ist falsch.'
-        : error.message.includes('Email not confirmed')
-        ? 'Bitte bestätige zuerst deine E-Mail-Adresse.'
-        : 'Anmeldung fehlgeschlagen. Bitte erneut versuchen.';
-      showError(errorEl, msg);
+    if (result.error) {
+      showError(errorEl, translateAuthError(result.error, 'login'));
     } else {
       window.location.replace('index.html');
     }
@@ -326,14 +376,16 @@
     if (pw !== pw2) { showError(errorEl, 'Passwörter stimmen nicht überein.'); return; }
 
     setLoading(btn, true);
-    const { error } = await _sb.auth.signUp({ email, password: pw });
+    let regResult;
+    try {
+      regResult = await _sb.auth.signUp({ email, password: pw });
+    } catch (e) {
+      regResult = { error: e };
+    }
     setLoading(btn, false);
 
-    if (error) {
-      const msg = error.message.includes('already registered')
-        ? 'Diese E-Mail-Adresse ist bereits registriert.'
-        : 'Registrierung fehlgeschlagen: ' + error.message;
-      showError(errorEl, msg);
+    if (regResult.error) {
+      showError(errorEl, translateAuthError(regResult.error, 'signup'));
     } else {
       showSuccess(successEl, 'Konto erstellt! Bitte bestätige deine E-Mail-Adresse und melde dich danach an.');
       document.getElementById('regEmail').value = '';
@@ -369,13 +421,18 @@
     if (!email) { showError(errorEl, 'Bitte E-Mail-Adresse eingeben.'); return; }
 
     setLoading(btn, true);
-    const { error } = await _sb.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + (window.location.pathname.replace('login.html', '')) + 'login.html'
-    });
+    let resetResult;
+    try {
+      resetResult = await _sb.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + (window.location.pathname.replace('login.html', '')) + 'login.html'
+      });
+    } catch (e) {
+      resetResult = { error: e };
+    }
     setLoading(btn, false);
 
-    if (error) {
-      showError(errorEl, 'Fehler: ' + error.message);
+    if (resetResult.error) {
+      showError(errorEl, translateAuthError(resetResult.error, 'reset'));
     } else {
       showSuccess(successEl, 'Link zum Zurücksetzen wurde gesendet. Bitte prüfe dein E-Mail-Postfach.');
     }
